@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import LandingPage from './pages/LandingPage';
+import UpdateProfile from './pages/UpdateProfile';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -54,6 +55,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <LandingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/update-profile"
+                element={
+                  <ProtectedRoute>
+                    <UpdateProfile />
                   </ProtectedRoute>
                 }
               />
