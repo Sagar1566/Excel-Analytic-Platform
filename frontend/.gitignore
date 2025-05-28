@@ -1,0 +1,20 @@
+# Ignore node modules
+node_modules/
+
+# Ignore cache and pack files
+*.pack
+*.pack.old
+.eslintcache
+
+# Optional: Ignore environment files
+.env
+# Ignore node modules
+node_modules/
+
+# Ignore cache and pack files
+*.pack
+*.pack.old
+.eslintcache
+
+# Optional: Ignore environment files
+.env
