@@ -317,6 +317,8 @@ const LandingPage = () => {
   const [availableColumns, setAvailableColumns] = useState([]);
   const [chartDimension, setChartDimension] = useState('2d');
   const [is3DSupported, setIs3DSupported] = useState(true);
+  const [xAxis, setXAxis] = useState('');
+  const [yAxes, setYAxes] = useState([]);
   const chartRef = useRef(null);
   const [chartInstance, setChartInstance] = useState(null);
 
@@ -413,13 +415,15 @@ const LandingPage = () => {
       type: file.type,
       size: file.size,
       chartType: selectedChartType,
-      selectedColumns
+      xAxis,
+      yAxes
     });
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('chartType', selectedChartType);
-    formData.append('columns', JSON.stringify(selectedColumns));
+    formData.append('xAxis', xAxis);
+    formData.append('yAxes', JSON.stringify(yAxes));
 
     try {
       const response = await axios.post('/upload', formData);
@@ -429,6 +433,15 @@ const LandingPage = () => {
       setChartData(data);
       setAnalysis(analysis);
       setAvailableColumns(columns || []);
+      
+      // Set default axes if not selected
+      if (!xAxis && columns?.length > 0) {
+        setXAxis(columns[0]);
+      }
+      if (yAxes.length === 0 && columns?.length > 1) {
+        setYAxes([columns[1]]);
+      }
+      
       await fetchStats();
       await fetchHistory();
       toast.success('File uploaded successfully');
@@ -610,6 +623,45 @@ const LandingPage = () => {
     </div>
   );
 
+  const renderAxisControls = () => (
+    <div style={styles.axisControls}>
+      <div style={styles.axisSection}>
+        <h4 style={styles.axisTitle}>X-Axis</h4>
+        <div style={styles.columnGrid}>
+          {availableColumns.map(column => (
+            <div
+              key={column}
+              style={{
+                ...styles.columnOption,
+                ...(xAxis === column ? styles.selectedColumn : {})
+              }}
+              onClick={() => handleXAxisChange(column)}
+            >
+              {column}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={styles.axisSection}>
+        <h4 style={styles.axisTitle}>Y-Axis</h4>
+        <div style={styles.columnGrid}>
+          {availableColumns.map(column => (
+            <div
+              key={column}
+              style={{
+                ...styles.columnOption,
+                ...(yAxes.includes(column) ? styles.selectedColumn : {})
+              }}
+              onClick={() => handleYAxisChange(column)}
+            >
+              {column}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderChartOptions = () => (
     <div style={styles.chartOptions}>
       <h3 style={styles.optionsTitle}>Chart Options</h3>
@@ -634,31 +686,7 @@ const LandingPage = () => {
         ))}
       </div>
       {renderDimensionSelector()}
-      {availableColumns.length > 0 && (
-        <div style={styles.columnSelection}>
-          <h4 style={styles.columnTitle}>Select Data Columns</h4>
-          <div style={styles.columnGrid}>
-            {availableColumns.map(column => (
-              <div
-                key={column}
-                style={{
-                  ...styles.columnOption,
-                  ...(selectedColumns.includes(column) ? styles.selectedColumn : {})
-                }}
-                onClick={() => {
-                  setSelectedColumns(prev =>
-                    prev.includes(column)
-                      ? prev.filter(col => col !== column)
-                      : [...prev, column]
-                  );
-                }}
-              >
-                {column}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {availableColumns.length > 0 && renderAxisControls()}
     </div>
   );
 
@@ -668,6 +696,42 @@ const LandingPage = () => {
       chartInstance.dispose();
     }
     setChartDimension(dimension);
+  };
+
+  // Add axis selection handlers
+  const handleXAxisChange = (column) => {
+    setXAxis(column);
+    updateChartData(column, yAxes);
+  };
+
+  const handleYAxisChange = (column) => {
+    const updatedYAxes = yAxes.includes(column)
+      ? yAxes.filter(y => y !== column)
+      : [...yAxes, column];
+    setYAxes(updatedYAxes);
+    updateChartData(xAxis, updatedYAxes);
+  };
+
+  const updateChartData = async (newXAxis, newYAxes) => {
+    if (!selectedFile || !newXAxis || newYAxes.length === 0) return;
+
+    try {
+      setLoading(true);
+      const response = await axios.post('/update-chart', {
+        fileId: selectedFile.id,
+        chartType: selectedChartType,
+        xAxis: newXAxis,
+        yAxes: newYAxes
+      });
+
+      const { data, analysis } = response.data;
+      setChartData(data);
+      setAnalysis(analysis);
+    } catch (error) {
+      toast.error('Failed to update chart');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteHistory = async (fileId) => {
@@ -1230,14 +1294,23 @@ const styles = {
     fontSize: '1.25rem',
     marginBottom: '0.5rem',
   },
-  columnSelection: {
+  axisControls: {
     marginTop: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
   },
-  columnTitle: {
+  axisSection: {
+    backgroundColor: '#fff',
+    padding: '1rem',
+    borderRadius: '6px',
+    border: '1px solid #e2e8f0',
+  },
+  axisTitle: {
     fontSize: '13px',
     fontWeight: '500',
     color: '#334155',
-    marginBottom: '0.5rem',
+    marginBottom: '0.75rem',
   },
   columnGrid: {
     display: 'grid',

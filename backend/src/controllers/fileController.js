@@ -10,7 +10,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Helper function to analyze Excel data
-const analyzeExcelData = (workbook, chartType = 'bar', selectedColumns = []) => {
+const analyzeExcelData = (workbook, chartType = 'bar', xAxis = '', yAxes = []) => {
   try {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = xlsx.utils.sheet_to_json(sheet);
@@ -22,44 +22,42 @@ const analyzeExcelData = (workbook, chartType = 'bar', selectedColumns = []) => 
     // Get all columns
     const allColumns = Object.keys(data[0]);
     
-    // Filter numeric columns
-    const numericColumns = allColumns.filter(key => 
-      !isNaN(data[0][key]) && typeof data[0][key] !== 'boolean'
-    );
-    
-    if (numericColumns.length === 0) {
-      throw new Error('No numeric columns found in the Excel file');
+    // Use provided axes or select defaults
+    const selectedXAxis = xAxis || allColumns[0];
+    const selectedYAxes = yAxes.length > 0 ? yAxes : [allColumns[1]];
+
+    // Validate axes
+    if (!allColumns.includes(selectedXAxis)) {
+      throw new Error('Selected X-axis column not found in data');
     }
 
-    // Use selected columns if provided, otherwise use all numeric columns
-    const columnsToUse = selectedColumns.length > 0 
-      ? selectedColumns.filter(col => numericColumns.includes(col))
-      : numericColumns;
+    selectedYAxes.forEach(yAxis => {
+      if (!allColumns.includes(yAxis)) {
+        throw new Error(`Selected Y-axis column "${yAxis}" not found in data`);
+      }
+    });
 
-    if (columnsToUse.length === 0) {
-      throw new Error('No valid numeric columns selected');
-    }
-
-    const trends = columnsToUse.map(col => {
+    // Calculate trends for Y-axes
+    const trends = selectedYAxes.map(col => {
       const values = data.map(row => parseFloat(row[col])).filter(val => !isNaN(val));
       const avg = values.reduce((a, b) => a + b, 0) / values.length;
       const trend = values[values.length - 1] > values[0] ? 'increasing' : 'decreasing';
       return { column: col, trend, average: avg };
     });
 
-    // Prepare chart data
+    // Prepare chart data based on selected axes
     const chartData = {
-      labels: data.map((_, index) => `Row ${index + 1}`),
-      datasets: columnsToUse.map((col, index) => ({
+      labels: data.map(row => row[selectedXAxis].toString()),
+      datasets: selectedYAxes.map((col, index) => ({
         label: col,
         data: data.map(row => parseFloat(row[col])),
-        borderColor: `hsl(${index * 360 / columnsToUse.length}, 70%, 50%)`,
-        backgroundColor: `hsla(${index * 360 / columnsToUse.length}, 70%, 50%, 0.5)`
+        borderColor: `hsl(${index * 360 / selectedYAxes.length}, 70%, 50%)`,
+        backgroundColor: `hsla(${index * 360 / selectedYAxes.length}, 70%, 50%, 0.5)`
       }))
     };
 
     return {
-      keyInsight: `Analysis of ${data.length} rows shows trends in ${columnsToUse.length} numeric columns.`,
+      keyInsight: `Analysis of ${data.length} rows shows trends in ${selectedYAxes.length} numeric columns.`,
       trendAnalysis: trends.map(t => 
         `${t.column} shows a ${t.trend} trend with average of ${t.average.toFixed(2)}`
       ).join('. '),
@@ -95,7 +93,8 @@ exports.uploadFile = async (req, res) => {
       mimetype: req.file.mimetype,
       size: req.file.size,
       chartType: req.body.chartType,
-      columns: req.body.columns
+      xAxis: req.body.xAxis,
+      yAxes: req.body.yAxes
     });
 
     // Read and analyze the Excel file
@@ -106,8 +105,9 @@ exports.uploadFile = async (req, res) => {
     }
 
     const chartType = req.body.chartType || 'bar';
-    const selectedColumns = req.body.columns ? JSON.parse(req.body.columns) : [];
-    const analysis = analyzeExcelData(workbook, chartType, selectedColumns);
+    const xAxis = req.body.xAxis || '';
+    const yAxes = req.body.yAxes ? JSON.parse(req.body.yAxes) : [];
+    const analysis = analyzeExcelData(workbook, chartType, xAxis, yAxes);
 
     // Save file information to database
     const file = new File({
@@ -120,7 +120,8 @@ exports.uploadFile = async (req, res) => {
       },
       chartData: analysis.chartData,
       chartType: chartType,
-      selectedColumns: selectedColumns
+      xAxis: xAxis,
+      yAxes: yAxes
     });
 
     await file.save();
@@ -136,7 +137,8 @@ exports.uploadFile = async (req, res) => {
         size: formatFileSize(file.size),
         uploadedAt: file.uploadedAt,
         chartType: file.chartType,
-        selectedColumns: file.selectedColumns
+        xAxis: file.xAxis,
+        yAxes: file.yAxes
       }
     });
   } catch (error) {
@@ -165,6 +167,46 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
+exports.updateChart = async (req, res) => {
+  try {
+    const { fileId, chartType, xAxis, yAxes } = req.body;
+
+    const file = await File.findById(fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check if the file exists
+    if (!file.path || !fs.existsSync(file.path)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    // Read and analyze the Excel file with new axes
+    const workbook = xlsx.readFile(file.path);
+    const analysis = analyzeExcelData(workbook, chartType, xAxis, yAxes);
+
+    // Update file in database
+    file.chartData = analysis.chartData;
+    file.analysis = {
+      keyInsight: analysis.keyInsight,
+      trendAnalysis: analysis.trendAnalysis
+    };
+    file.chartType = chartType;
+    file.xAxis = xAxis;
+    file.yAxes = yAxes;
+
+    await file.save();
+
+    res.json({
+      data: analysis.chartData,
+      analysis: file.analysis
+    });
+  } catch (error) {
+    console.error('Error updating chart:', error);
+    res.status(500).json({ error: 'Failed to update chart' });
+  }
+};
+
 exports.getHistory = async (req, res) => {
   try {
     const files = await File.find().sort({ uploadedAt: -1 });
@@ -174,7 +216,10 @@ exports.getHistory = async (req, res) => {
       name: file.name,
       size: formatFileSize(file.size),
       uploadedAt: file.uploadedAt,
-      analysis: file.analysis
+      analysis: file.analysis,
+      chartType: file.chartType,
+      xAxis: file.xAxis,
+      yAxes: file.yAxes
     })));
   } catch (error) {
     res.status(500).json({ error: error.message });

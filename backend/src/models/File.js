@@ -31,6 +31,13 @@ const FileSchema = new mongoose.Schema({
     enum: ['bar', 'line', 'pie', 'scatter', 'radar', 'doughnut'],
     default: 'bar'
   },
+  xAxis: {
+    type: String,
+    default: ''
+  },
+  yAxes: [{
+    type: String
+  }],
   selectedColumns: [{
     type: String
   }],

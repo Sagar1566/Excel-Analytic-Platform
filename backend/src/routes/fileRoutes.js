@@ -3,7 +3,8 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { uploadFile, getHistory, getStats } = require('../controllers/fileController');
+const xlsx = require('xlsx');
+const { uploadFile, getHistory, getStats, updateChart } = require('../controllers/fileController');
 const File = require('../models/File');
 
 // File Upload Configuration
@@ -124,6 +125,46 @@ const uploadMiddleware = (req, res, next) => {
 router.post('/upload', uploadMiddleware, uploadFile);
 router.get('/history', getHistory);
 router.get('/stats', getStats);
+router.post('/update-chart', updateChart);
+
+// Get file data from history
+router.get('/history/:fileId/data', async (req, res) => {
+  try {
+    const file = await File.findById(req.params.fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check if the file exists
+    if (!file.path || !fs.existsSync(file.path)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+
+    // Read and analyze the Excel file
+    const workbook = xlsx.readFile(file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(sheet);
+    
+    if (!data || data.length === 0) {
+      throw new Error('Excel file is empty or invalid');
+    }
+
+    // Get all columns
+    const allColumns = Object.keys(data[0]);
+    
+    res.json({
+      data: file.chartData,
+      analysis: file.analysis,
+      columns: allColumns,
+      xAxis: file.xAxis,
+      yAxes: file.yAxes,
+      chartType: file.chartType
+    });
+  } catch (error) {
+    console.error('Error getting file data:', error);
+    res.status(500).json({ error: 'Failed to get file data' });
+  }
+});
 
 // Delete file from history
 router.delete('/history/:fileId', async (req, res) => {
