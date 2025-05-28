@@ -24,7 +24,7 @@ const FileSchema = new mongoose.Schema({
   },
   chartData: {
     type: mongoose.Schema.Types.Mixed,
-    required: true
+    default: null
   },
   chartType: {
     type: String,
@@ -36,8 +36,7 @@ const FileSchema = new mongoose.Schema({
   }],
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
   }
 });
 

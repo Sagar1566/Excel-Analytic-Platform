@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { uploadFile, getHistory, getStats } = require('../controllers/fileController');
+const File = require('../models/File');
 
 // File Upload Configuration
 const storage = multer.diskStorage({
@@ -122,5 +124,28 @@ const uploadMiddleware = (req, res, next) => {
 router.post('/upload', uploadMiddleware, uploadFile);
 router.get('/history', getHistory);
 router.get('/stats', getStats);
+
+// Delete file from history
+router.delete('/history/:fileId', async (req, res) => {
+  try {
+    const file = await File.findById(req.params.fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Delete the physical file if it exists
+    if (file.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
+    // Delete the database record
+    await File.findByIdAndDelete(req.params.fileId);
+
+    res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
 
 module.exports = router; 
