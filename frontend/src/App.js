@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -37,9 +38,9 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <Router>
-          <div className="App">
+          <div className="App" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
             <Navbar />
-            <div className="container">
+            <div className="container" style={{ flexGrow: 1, width: '100%' }}>
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
@@ -70,6 +71,7 @@ function App() {
                 />
               </Routes>
             </div>
+            <Footer />
             <ToastContainer />
           </div>
         </Router>

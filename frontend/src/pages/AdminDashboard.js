@@ -7,37 +7,23 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    activeUsers: 0,
-    inactiveUsers: 0
-  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        const data = await getAllUsers();
+        setUsers(data);
+      } catch (error) {
+        setError(error.response?.data?.message || 'Failed to fetch users.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchUsers();
   }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const data = await getAllUsers();
-      setUsers(data);
-      calculateStats(data);
-    } catch (error) {
-      toast.error('Failed to fetch users');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStats = (userData) => {
-    const total = userData.length;
-    const active = userData.filter(u => u.isActive).length;
-    setStats({
-      totalUsers: total,
-      activeUsers: active,
-      inactiveUsers: total - active
-    });
-  };
 
   const handleUserStatusChange = async (userId, isActive) => {
     try {
@@ -46,7 +32,6 @@ const AdminDashboard = () => {
         user._id === userId ? { ...user, isActive: !isActive } : user
       );
       setUsers(updatedUsers);
-      calculateStats(updatedUsers);
       toast.success('User status updated successfully');
     } catch (error) {
       toast.error('Failed to update user status');
@@ -55,6 +40,10 @@ const AdminDashboard = () => {
 
   if (loading) {
     return <div style={styles.loading}>Loading...</div>;
+  }
+
+  if (error) {
+    return <div style={styles.error}>{error}</div>;
   }
 
   return (
@@ -67,15 +56,7 @@ const AdminDashboard = () => {
       <div style={styles.statsContainer}>
         <div style={styles.statCard}>
           <h3>Total Users</h3>
-          <p style={styles.statNumber}>{stats.totalUsers}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Active Users</h3>
-          <p style={styles.statNumber}>{stats.activeUsers}</p>
-        </div>
-        <div style={styles.statCard}>
-          <h3>Inactive Users</h3>
-          <p style={styles.statNumber}>{stats.inactiveUsers}</p>
+          <p style={styles.statNumber}>{users.length}</p>
         </div>
       </div>
 
@@ -212,6 +193,12 @@ const styles = {
     padding: '2rem',
     fontSize: '1.2rem',
     color: '#666',
+  },
+  error: {
+    textAlign: 'center',
+    padding: '2rem',
+    fontSize: '1.2rem',
+    color: '#dc3545',
   },
 };
 
