@@ -4,6 +4,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -34,43 +35,45 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <Navbar />
-          <div className="container">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute adminOnly>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/landingpage"
-                element={
-                  <ProtectedRoute>
-                    <LandingPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/update-profile"
-                element={
-                  <ProtectedRoute>
-                    <UpdateProfile />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
+      <ThemeProvider>
+        <Router>
+          <div className="App">
+            <Navbar />
+            <div className="container">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute adminOnly>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/landingpage"
+                  element={
+                    <ProtectedRoute>
+                      <LandingPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/update-profile"
+                  element={
+                    <ProtectedRoute>
+                      <UpdateProfile />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </div>
+            <ToastContainer />
           </div>
-          <ToastContainer />
-        </div>
-      </Router>
+        </Router>
+      </ThemeProvider>
     </AuthProvider>
   );
 }
