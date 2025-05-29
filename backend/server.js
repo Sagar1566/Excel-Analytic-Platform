@@ -16,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost/excel-analytics', {
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://gajbharsn:dpLisEU7UhUKYUrC@cluster0.4gzoogm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
