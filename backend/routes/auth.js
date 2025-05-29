@@ -25,7 +25,7 @@ router.post('/register', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
       { expiresIn: '24h' }
     );
@@ -40,6 +40,7 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Registration route error:', error);
     res.status(500).json({ message: 'Error creating user' });
   }
 });
@@ -63,7 +64,7 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
       { expiresIn: '24h' }
     );
@@ -83,4 +84,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-module.exports = router; module.exports = router; 
+module.exports = router; 
