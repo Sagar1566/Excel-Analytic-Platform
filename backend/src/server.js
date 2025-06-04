@@ -39,7 +39,7 @@ app.use('/uploads', express.static(uploadsDir));
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    await mongoose.connect('mongodb+srv://gajbharsn:Agi8bpl6GaJojY7X@rikaexcel.efngffp.mongodb.net/excelanalytics?retryWrites=true&w=majority&appName=RikaExcel', {
+    await mongoose.connect('mongodb://localhost:27017/excelanalytics', {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
