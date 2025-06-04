@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import axios from '../utils/axios';
 
 const UpdateProfile = () => {
   const { user, login } = useAuth();
@@ -42,7 +42,7 @@ const UpdateProfile = () => {
     }
 
     try {
-      const response = await axios.put('/api/users/profile', {
+      const response = await axios.put('/auth/users/profile', {
         name: formData.name,
         email: formData.email,
         currentPassword: formData.currentPassword,
