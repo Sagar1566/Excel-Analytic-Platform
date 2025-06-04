@@ -321,6 +321,13 @@ const LandingPage = () => {
   const [yAxes, setYAxes] = useState([]);
   const chartRef = useRef(null);
   const [chartInstance, setChartInstance] = useState(null);
+  const [dashboards, setDashboards] = useState([]);
+  const [currentDashboard, setCurrentDashboard] = useState(null);
+  const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
+  const [dashboardName, setDashboardName] = useState('');
+  const [dashboardLayout, setDashboardLayout] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedChart, setDraggedChart] = useState(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -761,7 +768,201 @@ const LandingPage = () => {
     }
   };
 
-  // Update the history section render
+  const handleAddToDashboard = (file) => {
+    if (!isCreatingDashboard) {
+      toast.info('Please create a new dashboard first');
+      return;
+    }
+
+    // Generate a unique position that doesn't overlap with existing charts
+    const getNewPosition = () => {
+      const positions = dashboardLayout.map(chart => ({
+        x: chart.position.x,
+        y: chart.position.y,
+        w: chart.position.w,
+        h: chart.position.h
+      }));
+
+      // Try to find an empty spot
+      for (let y = 0; y < 8; y += 4) {
+        for (let x = 0; x < 12; x += 6) {
+          const isOccupied = positions.some(pos => 
+            pos.x === x && pos.y === y
+          );
+          if (!isOccupied) {
+            return { x, y, w: 6, h: 4 };
+          }
+        }
+      }
+      // If no empty spot found, place at the end
+      return { x: 0, y: dashboardLayout.length * 4, w: 6, h: 4 };
+    };
+
+    const newChart = {
+      id: Date.now().toString(),
+      type: file.chartType || selectedChartType,
+      data: file.chartData,
+      position: getNewPosition(),
+      title: file.name || 'Chart',
+      isResizing: false,
+      isDragging: false
+    };
+
+    setDashboardLayout([...dashboardLayout, newChart]);
+    toast.success('Chart added to dashboard');
+  };
+
+  const handleChartResize = (chartId, newSize) => {
+    setDashboardLayout(prevLayout => 
+      prevLayout.map(chart => 
+        chart.id === chartId 
+          ? { ...chart, position: { ...chart.position, ...newSize } }
+          : chart
+      )
+    );
+  };
+
+  const handleChartMove = (chartId, newPosition) => {
+    setDashboardLayout(prevLayout => 
+      prevLayout.map(chart => 
+        chart.id === chartId 
+          ? { ...chart, position: { ...chart.position, ...newPosition } }
+          : chart
+      )
+    );
+  };
+
+  const handleChartDelete = (chartId) => {
+    setDashboardLayout(prevLayout => 
+      prevLayout.filter(chart => chart.id !== chartId)
+    );
+    toast.success('Chart removed from dashboard');
+  };
+
+  const renderDashboardCreator = () => (
+    <div style={styles.dashboardCreator}>
+      <h3 style={styles.dashboardTitle}>Create New Dashboard</h3>
+      <input
+        type="text"
+        value={dashboardName}
+        onChange={(e) => setDashboardName(e.target.value)}
+        placeholder="Enter dashboard name"
+        style={styles.dashboardInput}
+      />
+      <div 
+        style={styles.dashboardGrid}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDashboardDrop}
+      >
+        {dashboardLayout.map((chart) => (
+          <div
+            key={chart.id}
+            style={{
+              ...styles.dashboardChart,
+              gridColumn: `span ${chart.position.w}`,
+              gridRow: `span ${chart.position.h}`,
+              transform: `translate(${chart.position.x * 100}px, ${chart.position.y * 100}px)`
+            }}
+          >
+            <div style={styles.chartHeader}>
+              <h4 style={styles.chartTitle}>{chart.title}</h4>
+              <div style={styles.chartControls}>
+                <button
+                  style={styles.chartControlButton}
+                  onClick={() => handleChartDelete(chart.id)}
+                  title="Remove Chart"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div style={styles.chartContent}>
+              <ReactECharts
+                option={getEChartsOption(chart.data, chart.type, chartDimension === '3d')}
+                style={{ height: '100%', width: '100%' }}
+              />
+            </div>
+            <div style={styles.resizeHandle} />
+          </div>
+        ))}
+      </div>
+      <div style={styles.dashboardActions}>
+        <button
+          style={styles.saveButton}
+          onClick={saveDashboard}
+        >
+          Save Dashboard
+        </button>
+        <button
+          style={styles.cancelButton}
+          onClick={() => setIsCreatingDashboard(false)}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
+  const handleDashboardDrop = (e) => {
+    e.preventDefault();
+    if (!isDragging || !draggedChart) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const newLayout = [...dashboardLayout];
+    newLayout.push({
+      ...draggedChart,
+      position: {
+        x: Math.floor(x / (rect.width / 12)),
+        y: Math.floor(y / (rect.height / 8)),
+        w: 6,
+        h: 4
+      }
+    });
+
+    setDashboardLayout(newLayout);
+    handleDragEnd();
+  };
+
+  const handleDragStart = (chart) => {
+    setIsDragging(true);
+    setDraggedChart(chart);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    setDraggedChart(null);
+  };
+
+  const renderDashboardList = () => (
+    <div style={styles.dashboardList}>
+      <h3 style={styles.dashboardTitle}>Your Dashboards</h3>
+      <button
+        style={styles.createButton}
+        onClick={() => setIsCreatingDashboard(true)}
+      >
+        <i className="fas fa-plus"></i> Create New Dashboard
+      </button>
+      <div style={styles.dashboardGrid}>
+        {dashboards.map((dashboard) => (
+          <div
+            key={dashboard.id}
+            style={styles.dashboardCard}
+            onClick={() => setCurrentDashboard(dashboard)}
+          >
+            <h4 style={styles.dashboardCardTitle}>{dashboard.name}</h4>
+            <p style={styles.dashboardCardInfo}>
+              {dashboard.charts.length} charts
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Restore the history section render
   const renderHistory = () => (
     <section style={styles.historyBox}>
       <h3 style={styles.uploadTitle}>Upload History</h3>
@@ -786,6 +987,14 @@ const LandingPage = () => {
                   <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-chart-line'}`}></i>
                 </button>
                 <button 
+                  style={styles.addToDashboardButton}
+                  onClick={() => handleAddToDashboard(file)}
+                  title="Add to Dashboard"
+                  disabled={loading}
+                >
+                  <i className="fas fa-plus"></i>
+                </button>
+                <button 
                   style={styles.deleteButton}
                   onClick={() => handleDeleteHistory(file.id)}
                   title="Delete from History"
@@ -806,6 +1015,79 @@ const LandingPage = () => {
       )}
     </section>
   );
+
+  // Restore dashboard management functions
+  const createNewDashboard = () => {
+    setIsCreatingDashboard(true);
+    setDashboardName('');
+    setDashboardLayout([]);
+  };
+
+  const saveDashboard = () => {
+    if (!dashboardName.trim()) {
+      toast.error('Please enter a dashboard name');
+      return;
+    }
+
+    const newDashboard = {
+      id: Date.now().toString(),
+      name: dashboardName,
+      layout: dashboardLayout,
+      charts: dashboardLayout.map(chart => ({
+        id: chart.id,
+        type: chart.type,
+        data: chart.data,
+        position: chart.position,
+        title: chart.title
+      }))
+    };
+
+    setDashboards(prevDashboards => [...prevDashboards, newDashboard]);
+    setCurrentDashboard(newDashboard);
+    setIsCreatingDashboard(false);
+    toast.success('Dashboard created successfully!');
+  };
+
+  // Add chart from chart area to dashboard
+  const handleAddCurrentChartToDashboard = () => {
+    if (!isCreatingDashboard) {
+      toast.info('Please create a new dashboard first');
+      return;
+    }
+    if (!chartData) {
+      toast.error('No chart to add');
+      return;
+    }
+    // Generate a unique position
+    const getNewPosition = () => {
+      const positions = dashboardLayout.map(chart => ({
+        x: chart.position.x,
+        y: chart.position.y,
+        w: chart.position.w,
+        h: chart.position.h
+      }));
+      for (let y = 0; y < 8; y += 4) {
+        for (let x = 0; x < 12; x += 6) {
+          const isOccupied = positions.some(pos => pos.x === x && pos.y === y);
+          if (!isOccupied) {
+            return { x, y, w: 6, h: 4 };
+          }
+        }
+      }
+      return { x: 0, y: dashboardLayout.length * 4, w: 6, h: 4 };
+    };
+    const newChart = {
+      id: Date.now().toString(),
+      type: selectedChartType,
+      data: chartData,
+      position: getNewPosition(),
+      title: selectedFile?.name || 'Chart',
+      isResizing: false,
+      isDragging: false
+    };
+    setDashboardLayout([...dashboardLayout, newChart]);
+    toast.success('Chart added to dashboard');
+  };
 
   return (
     <div style={styles.container}>
@@ -884,14 +1166,24 @@ const LandingPage = () => {
                       {chartDimension.toUpperCase()}
                     </span>
                   </h3>
-                  <button
-                    style={styles.downloadButton}
-                    onClick={handleDownloadChart}
-                    title="Download Chart"
-                  >
-                    <i className="fas fa-download"></i>
-                    Download Chart
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      style={styles.downloadButton}
+                      onClick={handleDownloadChart}
+                      title="Download Chart"
+                    >
+                      <i className="fas fa-download"></i>
+                      Download Chart
+                    </button>
+                    <button
+                      style={styles.addToDashboardButton}
+                      onClick={handleAddCurrentChartToDashboard}
+                      title="Add Chart to Dashboard"
+                    >
+                      <i className="fas fa-plus"></i>
+                      Add to Dashboard
+                    </button>
+                  </div>
                 </div>
                 <div style={styles.chartWrapper}>
                   <ReactECharts
@@ -917,6 +1209,11 @@ const LandingPage = () => {
         </section>
 
         {renderHistory()}
+
+        {/* Dashboard Section */}
+        <section style={styles.dashboardSection}>
+          {isCreatingDashboard ? renderDashboardCreator() : renderDashboardList()}
+        </section>
 
         {/* Insights and Trends */}
         <section style={styles.trendGrid}>
@@ -1339,12 +1636,12 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '1rem',
-    padding: '0 0.5rem',
+    padding: '0.5rem',
+    borderBottom: '1px solid #e2e8f0',
   },
   chartTitle: {
-    fontSize: '14px',
-    fontWeight: '600',
+    fontSize: '0.875rem',
+    fontWeight: '500',
     color: '#1e293b',
     margin: 0,
   },
@@ -1470,7 +1767,187 @@ const styles = {
     chartContainer: {
       minHeight: '300px'
     }
-  }
+  },
+  dashboardSection: {
+    backgroundColor: '#fff',
+    borderRadius: '8px',
+    padding: '1.5rem',
+    marginBottom: '1.5rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+  },
+  dashboardCreator: {
+    padding: '1rem',
+  },
+  dashboardTitle: {
+    fontSize: '1.2rem',
+    fontWeight: '600',
+    marginBottom: '1rem',
+    color: '#1e293b',
+  },
+  dashboardInput: {
+    width: '100%',
+    padding: '0.75rem',
+    border: '1px solid #e2e8f0',
+    borderRadius: '6px',
+    marginBottom: '1rem',
+    fontSize: '1rem',
+  },
+  dashboardGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(12, 1fr)',
+    gap: '1rem',
+    minHeight: '400px',
+    padding: '1rem',
+    backgroundColor: '#f8fafc',
+    borderRadius: '6px',
+    position: 'relative',
+  },
+  dashboardChart: {
+    backgroundColor: '#fff',
+    borderRadius: '6px',
+    padding: '0.5rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    cursor: 'move',
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'relative',
+    '&:hover': {
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    },
+  },
+  dashboardActions: {
+    display: 'flex',
+    gap: '1rem',
+    marginTop: '1rem',
+  },
+  saveButton: {
+    padding: '0.75rem 1.5rem',
+    backgroundColor: '#3b82f6',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    '&:hover': {
+      backgroundColor: '#2563eb',
+    },
+  },
+  cancelButton: {
+    padding: '0.75rem 1.5rem',
+    backgroundColor: '#e2e8f0',
+    color: '#475569',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    '&:hover': {
+      backgroundColor: '#cbd5e1',
+    },
+  },
+  dashboardList: {
+    padding: '1rem',
+  },
+  createButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: '#3b82f6',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    marginBottom: '1rem',
+    '&:hover': {
+      backgroundColor: '#2563eb',
+    },
+  },
+  dashboardCard: {
+    backgroundColor: '#fff',
+    borderRadius: '6px',
+    padding: '1rem',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    cursor: 'pointer',
+    transition: 'transform 0.2s',
+    '&:hover': {
+      transform: 'translateY(-2px)',
+    },
+  },
+  dashboardCardTitle: {
+    fontSize: '1rem',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: '0.5rem',
+  },
+  dashboardCardInfo: {
+    fontSize: '0.875rem',
+    color: '#64748b',
+  },
+  chartControls: {
+    display: 'flex',
+    gap: '0.5rem',
+  },
+  chartControlButton: {
+    backgroundColor: 'transparent',
+    border: 'none',
+    color: '#64748b',
+    cursor: 'pointer',
+    padding: '0.25rem',
+    fontSize: '0.75rem',
+    '&:hover': {
+      color: '#ef4444',
+    },
+  },
+  chartContent: {
+    flex: 1,
+    padding: '0.5rem',
+    position: 'relative',
+  },
+  resizeHandle: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: '20px',
+    height: '20px',
+    cursor: 'nwse-resize',
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      right: '4px',
+      bottom: '4px',
+      width: '8px',
+      height: '8px',
+      borderRight: '2px solid #cbd5e1',
+      borderBottom: '2px solid #cbd5e1',
+    },
+  },
+  addToDashboardButton: {
+    backgroundColor: '#10b981',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    padding: '6px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '28px',
+    height: '28px',
+    transition: 'all 0.2s',
+    '&:hover': {
+      backgroundColor: '#059669',
+    },
+    '&:disabled': {
+      backgroundColor: '#a7f3d0',
+      cursor: 'not-allowed',
+      opacity: 0.7
+    }
+  },
 };
 
 export default LandingPage;
