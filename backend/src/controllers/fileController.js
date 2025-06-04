@@ -121,7 +121,8 @@ exports.uploadFile = async (req, res) => {
       chartData: analysis.chartData,
       chartType: chartType,
       xAxis: xAxis,
-      yAxes: yAxes
+      yAxes: yAxes,
+      user: req.user._id
     });
 
     await file.save();
@@ -209,8 +210,12 @@ exports.updateChart = async (req, res) => {
 
 exports.getHistory = async (req, res) => {
   try {
-    const files = await File.find().sort({ uploadedAt: -1 });
-    
+    let files;
+    if (req.user.role === 'admin') {
+      files = await File.find().sort({ uploadedAt: -1 });
+    } else {
+      files = await File.find({ user: req.user._id }).sort({ uploadedAt: -1 });
+    }
     res.json(files.map(file => ({
       id: file._id,
       name: file.name,
@@ -239,5 +244,65 @@ exports.getStats = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Secure file data access
+exports.getFileData = async (req, res) => {
+  try {
+    const file = await File.findById(req.params.fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    if (req.user.role !== 'admin' && !file.user.equals(req.user._id)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    // Check if the file exists
+    if (!file.path || !fs.existsSync(file.path)) {
+      return res.status(404).json({ error: 'File not found on disk' });
+    }
+    // Read and analyze the Excel file
+    const workbook = xlsx.readFile(file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(sheet);
+    if (!data || data.length === 0) {
+      throw new Error('Excel file is empty or invalid');
+    }
+    // Get all columns
+    const allColumns = Object.keys(data[0]);
+    res.json({
+      data: file.chartData,
+      analysis: file.analysis,
+      columns: allColumns,
+      xAxis: file.xAxis,
+      yAxes: file.yAxes,
+      chartType: file.chartType
+    });
+  } catch (error) {
+    console.error('Error getting file data:', error);
+    res.status(500).json({ error: 'Failed to get file data' });
+  }
+};
+
+// Secure file delete
+exports.deleteFile = async (req, res) => {
+  try {
+    const file = await File.findById(req.params.fileId);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    if (req.user.role !== 'admin' && !file.user.equals(req.user._id)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    // Delete the physical file if it exists
+    if (file.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+    // Delete the database record
+    await File.findByIdAndDelete(req.params.fileId);
+    res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
   }
 }; 

@@ -41,9 +41,10 @@ const FileSchema = new mongoose.Schema({
   selectedColumns: [{
     type: String
   }],
-  userId: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    required: true
   }
 });
 

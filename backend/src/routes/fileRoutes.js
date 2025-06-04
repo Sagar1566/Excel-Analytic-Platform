@@ -4,8 +4,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const xlsx = require('xlsx');
-const { uploadFile, getHistory, getStats, updateChart } = require('../controllers/fileController');
+const { uploadFile, getHistory, getStats, updateChart, getFileData, deleteFile } = require('../controllers/fileController');
 const File = require('../models/File');
+const { auth } = require('../middleware/auth');
 
 // File Upload Configuration
 const storage = multer.diskStorage({
@@ -122,71 +123,15 @@ const uploadMiddleware = (req, res, next) => {
 };
 
 // Routes
-router.post('/upload', uploadMiddleware, uploadFile);
-router.get('/history', getHistory);
-router.get('/stats', getStats);
-router.post('/update-chart', updateChart);
+router.post('/upload', auth, uploadMiddleware, uploadFile);
+router.get('/history', auth, getHistory);
+router.get('/stats', auth, getStats);
+router.post('/update-chart', auth, updateChart);
 
 // Get file data from history
-router.get('/history/:fileId/data', async (req, res) => {
-  try {
-    const file = await File.findById(req.params.fileId);
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    // Check if the file exists
-    if (!file.path || !fs.existsSync(file.path)) {
-      return res.status(404).json({ error: 'File not found on disk' });
-    }
-
-    // Read and analyze the Excel file
-    const workbook = xlsx.readFile(file.path);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(sheet);
-    
-    if (!data || data.length === 0) {
-      throw new Error('Excel file is empty or invalid');
-    }
-
-    // Get all columns
-    const allColumns = Object.keys(data[0]);
-    
-    res.json({
-      data: file.chartData,
-      analysis: file.analysis,
-      columns: allColumns,
-      xAxis: file.xAxis,
-      yAxes: file.yAxes,
-      chartType: file.chartType
-    });
-  } catch (error) {
-    console.error('Error getting file data:', error);
-    res.status(500).json({ error: 'Failed to get file data' });
-  }
-});
+router.get('/history/:fileId/data', auth, getFileData);
 
 // Delete file from history
-router.delete('/history/:fileId', async (req, res) => {
-  try {
-    const file = await File.findById(req.params.fileId);
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    // Delete the physical file if it exists
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
-
-    // Delete the database record
-    await File.findByIdAndDelete(req.params.fileId);
-
-    res.json({ message: 'File deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting file:', error);
-    res.status(500).json({ error: 'Failed to delete file' });
-  }
-});
+router.delete('/history/:fileId', auth, deleteFile);
 
 module.exports = router; 
